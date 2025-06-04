@@ -1,0 +1,67 @@
+import os
+import arcpy
+
+#where the LAS files live
+workspace = r'//A/ClassifiedLASfiles'
+
+#where you want the output stat .txt files to live
+outputspace = r'//LasStatOutput'
+
+#execute batch LAS to statistics
+walk = arcpy.da.Walk(workspace, topdown=True, datatype='LasDataset')
+for dirpath, dirnames, filenames in walk:
+    for file in filenames:
+        rootname = file.split('.')
+        somename = rootname[0].split('_')
+        tilenumoutput = somename[1] + '.txt'
+        filenam = (os.path.join(dirpath, file))
+        outspacename =(os.path.join(outputspace, tilenumoutput))
+        
+        ## Dylan edits 1/17/2024
+        ## Adding a clause that checks for an existing output due to error
+        if arcpy.Exists(outspacename):
+            print(f"Skipping {outspacename} because it already exists.")
+        else:
+            arcpy.management.LasDatasetStatistics(filenam, "SKIP_EXISTING_STATS", outspacename, "DATASET", "COMMA", "DECIMAL_POINT")
+            print(f"Las Dataset Statistics completed for {filenam}.")
+            
+        ## arcpy.management.LasDatasetStatistics(filenam, "SKIP_EXISTING_STATS", outspacename, 
+                                                    ##"DATASET", "COMMA", "DECIMAL_POINT")
+
+        
+#retrieve # of building and ground points .txt files from last output
+import csv
+numbers = []
+
+bigcsvfile = r'where final csv containing ground '
+seen = set()
+
+for paths, dirs, files in os.walk(outputspace):
+    for file in files:
+            full_path = os.path.join(paths, file)
+            #gets root tile number
+            lasnum =((os.path.basename(full_path))[:3])
+            if lasnum not in seen:
+                seen.add(lasnum)
+                numbers.append({'tilenum': lasnum, 'number of bldg points': 0, 'number of ground points': 0})
+                with open(full_path, 'r') as in_file:
+                    for lines in in_file:
+                        if "Building" in lines:
+                            linesix = lines.split(',')
+                            x = linesix[2]
+                            numbers[-1]['number of bldg points'] = x
+                        if "Ground" in lines:
+                            linetwo = lines.split(',')
+                            y = linetwo[2]
+                            numbers[-1]['number of ground points'] = y
+                 
+                              
+#write results to csv       
+with open(bigcsvfile, 'w', newline='') as csvfile:
+    fieldnames = ['tilenum', 'number of bldg points', 'number of ground points']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    for nums in numbers:
+        writer.writerow(nums)
+        
+print('Done')     
