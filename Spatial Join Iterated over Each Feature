@@ -1,0 +1,42 @@
+#perform a select by layer for each feature in the source featureclass inside an 
+#update cursor to use selected features to calculate specific values in source fc 
+import arcpy
+
+# Set the workspace
+arcpy.env.workspace = r"C:\yours.gdb"
+
+# Define input feature classes
+source_fc = "CrashPoints_IntersectionPoints"  # The feature class to iterate over
+target_fc = "UnionTwp_pt3miSplit_scmroads"  # The feature class to select from
+
+
+# Create a search cursor to loop through each feature in the source
+with arcpy.da.UpdateCursor(source_fc, ["OID@", "SHAPE@", "LocationName", "RoadSegmentID"]) as pt_cursor:
+    for pt_row in pt_cursor:
+        oid = pt_row[0]
+        geom = pt_row[1]
+        if pt_row[3] is None:
+            # Create a feature layer from the target feature class
+            arcpy.MakeFeatureLayer_management(target_fc, "target_rd_lyr")
+            
+            # Create a temporary layer for the single feature
+            where_clause = f"OBJECTID = {oid}"
+            arcpy.MakeFeatureLayer_management(source_fc, "temp_source", where_clause)
+    
+            # Select by location
+            arcpy.SelectLayerByLocation_management("target_rd_lyr", "INTERSECT", "temp_source", "10 feet")
+    
+            # see if string from ptlocation is present in the selected features
+            selected_rds = "target_rd_lyr"
+            with arcpy.da.SearchCursor(selected_rds, ["PRIMENAME", "segid"]) as cursor:
+                for row in cursor:
+                    if pt_row[2] in row[0].lower():
+                        pt_row[3] = row[1]
+                        pt_cursor.updateRow(pt_row)
+    
+            # Clear selection
+            arcpy.SelectLayerByAttribute_management("target_rd_lyr", "CLEAR_SELECTION")
+    
+            # Delete temporary layer
+            arcpy.Delete_management("temp_source")
+            arcpy.Delete_management("target_rd_lyr")
