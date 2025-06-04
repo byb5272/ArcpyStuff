@@ -1,0 +1,21 @@
+
+import arcpy, os
+rootFolder = r"/folderwherethefileslive"
+shapefiles = []
+for root, dirs, files in os.walk(rootFolder):
+    for name in files:      
+      if name.endswith(".shp") and "2DFoot" in name:
+        shpName = os.path.splitext(name)[0]
+        absFile = os.path.abspath(os.path.join(root,name)) 
+        shapefiles.append(absFile)
+    
+    
+fields = ["U_BLD_SQFT"]
+for ftprnts in shapefiles:
+    with arcpy.da.UpdateCursor(ftprnts,fields) as cursor:
+        for row in cursor:
+            row[0] = round(float(row[0]), 1)
+            cursor.updateRow(row)
+            
+        
+print('done')       
